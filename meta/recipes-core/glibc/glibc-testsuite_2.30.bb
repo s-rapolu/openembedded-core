@@ -49,3 +49,4 @@ do_check () {
 }
 addtask do_check after do_compile
 
+inherit nopackages
