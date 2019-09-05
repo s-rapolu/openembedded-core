@@ -49,5 +49,6 @@ do_check () {
 }
 addtask do_check after do_compile
 
+PACKAGES = ""
 inherit nopackages
 deltask do_stash_locale
