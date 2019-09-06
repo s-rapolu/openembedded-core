@@ -22,7 +22,15 @@ SRC_URI = "http://matt.ucc.asn.au/dropbear/releases/dropbear-${PV}.tar.bz2 \
            file://dropbearkey.service \
            file://dropbear@.service \
            file://dropbear.socket \
+	   ${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', '${DROPBEAR_SRC_URI}', '', d)} \
            ${@bb.utils.contains('DISTRO_FEATURES', 'pam', '${PAM_SRC_URI}', '', d)} "
+
+DROPBEAR_SRC_URI = "file://0008-Makefile.in-changes.patch \
+                    file://0009-svr-main.c-changes.patch \
+                    file://0010-configure.ac-changes.patch \
+                    file://0011-libdropbear.h-added.patch \
+                    file://0012-libdropbear.pc.in-added.patch \
+                    file://0013-linkedlist.h-added.patch "
 
 PAM_SRC_URI = "file://0005-dropbear-enable-pam.patch \
                file://0006-dropbear-configuration-file.patch \
@@ -42,9 +50,10 @@ INITSCRIPT_PARAMS = "defaults 10"
 
 SYSTEMD_SERVICE_${PN} = "dropbear.socket"
 
-SBINCOMMANDS = "dropbear dropbearkey dropbearconvert"
+SBINCOMMANDS = "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'dropbear', 'dropbear dropbearkey dropbearconvert', d)}"
 BINCOMMANDS = "dbclient ssh scp"
-EXTRA_OEMAKE = 'MULTI=1 SCPPROGRESS=1 PROGRAMS="${SBINCOMMANDS} ${BINCOMMANDS}"'
+EXTRA_OEMAKE = '${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'DROPBEAR_SHARED_LIB=1', 'MULTI=1 SCPPROGRESS=1 PROGRAMS="${SBINCOMMANDS} ${BINCOMMANDS}"', d)}'
+
 
 PACKAGECONFIG ?= ""
 PACKAGECONFIG[system-libtom] = "--disable-bundled-libtom,--enable-bundled-libtom,libtommath libtomcrypt"
@@ -57,21 +66,39 @@ do_install() {
 		${D}${sysconfdir}/init.d \
 		${D}${sysconfdir}/default \
 		${D}${sysconfdir}/dropbear \
-		${D}${bindir} \
-		${D}${sbindir} \
 		${D}${localstatedir}
 
-	install -m 0755 dropbearmulti ${D}${sbindir}/
-	ln -s ${sbindir}/dropbearmulti ${D}${bindir}/dbclient
+	if [ "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'dropbear_lib', '', d)}" = "dropbear_lib" ]; then
+
+                install -d   ${D}${libdir} \
+                             ${D}${includedir} \
+                             ${D}${libdir}/pkgconfig
+
+                install -D ${B}/libdropbear.so ${D}${libdir}/libdropbear.so.1
+                ln -snf libdropbear.so.1 ${D}${libdir}/libdropbear.so
+                install -D ${S}/libdropbear.h  ${D}${includedir}/
+                install -D ${B}/libdropbear.pc ${D}${libdir}/pkgconfig/LibDropbear.pc
+	fi
+
+	if [ "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_program', 'dropbear_program', '', d)}" = "dropbear_program" ]; then
+                install -d  ${D}${bindir} \
+                            ${D}${sbindir}
+
+                install -m 0755 dropbearmulti ${D}${sbindir}/
+		ln -s ${sbindir}/dropbearmulti ${D}${bindir}/dbclient
 	
-	for i in ${SBINCOMMANDS}
-	do
-		ln -s ./dropbearmulti ${D}${sbindir}/$i
-	done
+		for i in ${SBINCOMMANDS}
+		do
+			ln -s ./dropbearmulti ${D}${sbindir}/$i
+		done
+	fi
+
+
 	sed -e 's,/etc,${sysconfdir},g' \
 		-e 's,/usr/sbin,${sbindir},g' \
 		-e 's,/var,${localstatedir},g' \
 		-e 's,/usr/bin,${bindir},g' \
+		-e 's,/usr/lib,${libdir},g' \
 		-e 's,/usr,${prefix},g' ${WORKDIR}/init > ${D}${sysconfdir}/init.d/dropbear
 	chmod 755 ${D}${sysconfdir}/init.d/dropbear
 	if [ "${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'pam', '', d)}" = "pam" ]; then
