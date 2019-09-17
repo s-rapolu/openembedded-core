@@ -61,6 +61,8 @@ PACKAGECONFIG[system-libtom] = "--disable-bundled-libtom,--enable-bundled-libtom
 EXTRA_OECONF += "\
  ${@bb.utils.contains('DISTRO_FEATURES', 'pam', '--enable-pam', '--disable-pam', d)}"
 
+VER = "1.0.0"
+
 do_install() {
 	install -d ${D}${sysconfdir} \
 		${D}${sysconfdir}/init.d \
@@ -74,13 +76,11 @@ do_install() {
                              ${D}${includedir} \
                              ${D}${libdir}/pkgconfig
 
-                install -D ${B}/libdropbear.so ${D}${libdir}/libdropbear.so.1
-                ln -snf libdropbear.so.1 ${D}${libdir}/libdropbear.so
+                install -D ${B}/libdropbear.so ${D}${libdir}/libdropbear.so.${VER}
+                ln -snf libdropbear.so.${VER} ${D}${libdir}/libdropbear.so
                 install -D ${S}/libdropbear.h  ${D}${includedir}/
                 install -D ${B}/libdropbear.pc ${D}${libdir}/pkgconfig/LibDropbear.pc
-	fi
-
-	if [ "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_program', 'dropbear_program', '', d)}" = "dropbear_program" ]; then
+	else
                 install -d  ${D}${bindir} \
                             ${D}${sbindir}
 
