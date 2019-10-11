@@ -7,10 +7,13 @@ SECTION = "console/network"
 LICENSE = "MIT & BSD-3-Clause & BSD-2-Clause & PD"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=a5ec40cafba26fc4396d0b550f824e01"
 
-DEPENDS = "zlib"
-RPROVIDES_${PN} = "ssh sshd" 
+DEPENDS = "zlib virtual/crypt"
+RPROVIDES_${PN} = "ssh sshd"
 
-DEPENDS += "${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'libpam', '', d)}"
+DROPBEAR_PROGRAM_PAM = "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', '', 'pam', d)}"
+ENABLE_DROPBEAR_PAM = "${@oe.utils.both_contain('DISTRO_FEATURES', 'DROPBEAR_PROGRAM_PAM','pam', d)}"
+
+DEPENDS += "${@bb.utils.contains('ENABLE_DROPBEAR_PAM', 'pam', 'libpam', '', d)}"
 
 SRC_URI = "http://matt.ucc.asn.au/dropbear/releases/dropbear-${PV}.tar.bz2 \
            file://0001-urandom-xauth-changes-to-options.h.patch \
@@ -23,14 +26,9 @@ SRC_URI = "http://matt.ucc.asn.au/dropbear/releases/dropbear-${PV}.tar.bz2 \
            file://dropbear@.service \
            file://dropbear.socket \
 	   ${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', '${DROPBEAR_SRC_URI}', '', d)} \
-           ${@bb.utils.contains('DISTRO_FEATURES', 'pam', '${PAM_SRC_URI}', '', d)} "
+           ${@bb.utils.contains('ENABLE_DROPBEAR_PAM', 'pam', '${PAM_SRC_URI}', '', d)} "
 
-DROPBEAR_SRC_URI = "file://0008-Makefile.in-changes.patch \
-                    file://0009-svr-main.c-changes.patch \
-                    file://0010-configure.ac-changes.patch \
-                    file://0011-libdropbear.h-added.patch \
-                    file://0012-libdropbear.pc.in-added.patch \
-                    file://0013-linkedlist.h-added.patch "
+DROPBEAR_SRC_URI = "file://0008-New-interface-for-ThunderNanoServices.patch "
 
 PAM_SRC_URI = "file://0005-dropbear-enable-pam.patch \
                file://0006-dropbear-configuration-file.patch \
@@ -41,7 +39,7 @@ PAM_PLUGINS = "libpam-runtime \
 	pam-plugin-permit \
 	pam-plugin-unix \
 	"
-RDEPENDS_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'pam', '${PAM_PLUGINS}', '', d)}"
+RDEPENDS_${PN} += "${@bb.utils.contains('ENABLE_DROPBEAR_PAM', 'pam', '${PAM_PLUGINS}', '', d)}"
 
 inherit autotools update-rc.d systemd
 
@@ -59,7 +57,7 @@ PACKAGECONFIG ?= ""
 PACKAGECONFIG[system-libtom] = "--disable-bundled-libtom,--enable-bundled-libtom,libtommath libtomcrypt"
 
 EXTRA_OECONF += "\
- ${@bb.utils.contains('DISTRO_FEATURES', 'pam', '--enable-pam', '--disable-pam', d)}"
+ ${@bb.utils.contains('ENABLE_DROPBEAR_PAM', 'pam', '--enable-pam', '--disable-pam', d)}"
 
 VER = "1.0.0"
 
@@ -70,7 +68,7 @@ do_install() {
 		${D}${sysconfdir}/dropbear \
 		${D}${localstatedir}
 
-	if [ "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'dropbear_lib', '', d)}" = "dropbear_lib" ]; then
+	if [ "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'true', 'false', d)}" ]; then
 
                 install -d   ${D}${libdir} \
                              ${D}${includedir} \
@@ -101,7 +99,7 @@ do_install() {
 		-e 's,/usr/lib,${libdir},g' \
 		-e 's,/usr,${prefix},g' ${WORKDIR}/init > ${D}${sysconfdir}/init.d/dropbear
 	chmod 755 ${D}${sysconfdir}/init.d/dropbear
-	if [ "${@bb.utils.contains('DISTRO_FEATURES', 'pam', 'pam', '', d)}" = "pam" ]; then
+	if [ "${@bb.utils.contains('ENABLE_DROPBEAR_PAM', 'pam', 'pam', '', d)}" = "pam" ]; then
 		install -d ${D}${sysconfdir}/pam.d
 		install -m 0644 ${WORKDIR}/dropbear  ${D}${sysconfdir}/pam.d/
 	fi
@@ -132,3 +130,6 @@ pkg_postrm_append_${PN} () {
         rm ${sysconfdir}/dropbear/dropbear_dss_host_key
   fi
 }
+FILES_${PN} += "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', '${libdir}/*.so', '', d)}"
+FILES_SOLIBSDEV = ""
+INSANE_SKIP_${PN} += "${@bb.utils.contains('DROPBEAR_OPTION', 'dropbear_lib', 'dev-so', '', d)}"
